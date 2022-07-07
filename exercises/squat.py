@@ -1,0 +1,6 @@
+export = {
+    'name': 'Squat',
+    'states': [
+        
+    ]
+}
