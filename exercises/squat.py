@@ -1,6 +1,0 @@
-export = {
-    'name': 'Squat',
-    'states': [
-        
-    ]
-}

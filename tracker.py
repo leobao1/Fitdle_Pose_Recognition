@@ -1,11 +1,12 @@
-from cmath import sqrt
 import tensorflow as tf
 import tensorflow_hub as hub
 import numpy as np
 import cv2 as cv
 import copy
 import time
-import constants
+
+from constants import KEYPOINT_DICT, EXERCISES
+from visualization import draw_frame
 
 # Import matplotlib libraries
 # from matplotlib import pyplot as plt
@@ -47,8 +48,9 @@ def _movenet_estimation(model, input_size, image):
 
     return keypoints, scores
 
+
 def _dist_between_points(p1, p2):
-    return sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)
+    return np.sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)
 
 
 # p1 is vertex
@@ -57,27 +59,38 @@ def _angle_between_points(p1, p2, p3):
     d12 = _dist_between_points(p1, p2)
     d23 = _dist_between_points(p2, p3)
     d13 = _dist_between_points(p1, p3)
-    return np.arccos((d12**2 + d13**2 - d23**2)/(2*d12*d13))
+    angle = np.arccos((d12**2 + d13**2 - d23**2)/(2*d12*d13))
+    angle = np.degrees(angle)
+    return angle
 
 
-def _verify_output(keypoints_scores, expected, allowed_error=0.05):
-    for pose in expected:
-        p1 = keypoints_scores[pose[0]]
-        p2 = keypoints_scores[pose[1]]
-        p3 = keypoints_scores[pose[2]]
+def _verify_output(keypoints_scores, expectedPose, allowed_error=10):
+    for posture, expectedAngle in expectedPose.items():
+        p1 = keypoints_scores[0][KEYPOINT_DICT.get(posture[0])]
+        p2 = keypoints_scores[0][KEYPOINT_DICT.get(posture[1])]
+        p3 = keypoints_scores[0][KEYPOINT_DICT.get(posture[2])]
         angle = _angle_between_points(p1, p2, p3)
-        error = abs(angle - pose[3])/pose[3]
+        error = abs(angle - expectedAngle)
+        print(posture)
+        print(angle)
+        print(expectedAngle)
         if (error > allowed_error):
             return False
 
     return True
 
-def track(exercise, capture_device=0, height=540, width=960, model_name="movenet_lightning"):
+def track(exercise, capture_device=0, height=540, width=960, model_name="movenet_thunder"):
     model, input_size = _get_model(model_name)
 
     cap = cv.VideoCapture(capture_device)
     cap.set(cv.CAP_PROP_FRAME_HEIGHT, height)
     cap.set(cv.CAP_PROP_FRAME_WIDTH, width)
+
+    exerciseStates = EXERCISES.get(exercise)['states']
+    state = 0
+    numStates = len(exerciseStates)
+
+    repCounts = 0
 
     while True:
         ret, frame = cap.read()
@@ -91,6 +104,20 @@ def track(exercise, capture_device=0, height=540, width=960, model_name="movenet
             frame,
         )
 
-        # _verify_output(keypoints_scores)
+        if _verify_output(keypoints_scores, exerciseStates[state]):
+            state += 1
+            if state == numStates:
+                repCounts += 1
+                state = 0
 
-        print(keypoints_scores)
+        debug_image = draw_frame(
+            frame,
+            keypoints_scores,
+            repCounts
+        )
+
+        key = cv.waitKey(1)
+        if key == 27:  # ESC
+            break
+
+        cv.imshow('MoveNet(singlepose) Demo', debug_image)
