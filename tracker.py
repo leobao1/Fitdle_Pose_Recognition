@@ -64,20 +64,45 @@ def _angle_between_points(p1, p2, p3):
     return angle
 
 
-def _verify_output(keypoints_scores, expectedPose, allowed_error=10):
+def _verify_output(keypoints_scores, expectedPose, threshold=0.11):
+    diffs = {}
     for posture, expectedAngle in expectedPose.items():
-        p1 = keypoints_scores[0][KEYPOINT_DICT.get(posture[0])]
-        p2 = keypoints_scores[0][KEYPOINT_DICT.get(posture[1])]
-        p3 = keypoints_scores[0][KEYPOINT_DICT.get(posture[2])]
-        angle = _angle_between_points(p1, p2, p3)
-        error = abs(angle - expectedAngle)
-        print(posture)
-        print(angle)
-        print(expectedAngle)
-        if (error > allowed_error):
-            return False
+        if 'both' in posture[0]:
+            # Super hacky way to do this
+            angle_r = 99999
+            angle_l = 99999
 
-    return True
+            if (keypoints_scores[1][KEYPOINT_DICT.get(posture[0].replace('both', 'right'))] > threshold and 
+                keypoints_scores[1][KEYPOINT_DICT.get(posture[1].replace('both', 'right'))] > threshold and 
+                keypoints_scores[1][KEYPOINT_DICT.get(posture[2].replace('both', 'right'))] > threshold):
+                p1_r = keypoints_scores[0][KEYPOINT_DICT.get(posture[0].replace('both', 'right'))]
+                p2_r = keypoints_scores[0][KEYPOINT_DICT.get(posture[1].replace('both', 'right'))]
+                p3_r = keypoints_scores[0][KEYPOINT_DICT.get(posture[2].replace('both', 'right'))]
+                angle_r = _angle_between_points(p1_r, p2_r, p3_r)
+                # print(angle_r)
+
+            if (keypoints_scores[1][KEYPOINT_DICT.get(posture[0].replace('both', 'left'))] > threshold and 
+                keypoints_scores[1][KEYPOINT_DICT.get(posture[1].replace('both', 'left'))] > threshold and 
+                keypoints_scores[1][KEYPOINT_DICT.get(posture[2].replace('both', 'left'))] > threshold):
+                p1_l = keypoints_scores[0][KEYPOINT_DICT.get(posture[0].replace('both', 'left'))]
+                p2_l = keypoints_scores[0][KEYPOINT_DICT.get(posture[1].replace('both', 'left'))]
+                p3_l = keypoints_scores[0][KEYPOINT_DICT.get(posture[2].replace('both', 'left'))]
+                angle_l = _angle_between_points(p1_l, p2_l, p3_l)
+                # print(angle_l)
+
+
+            diffs[posture[0]] = min(abs(angle_r - expectedAngle), abs(angle_l - expectedAngle))
+        else:
+            if (keypoints_scores[1][KEYPOINT_DICT.get(posture[0])] > threshold and 
+                keypoints_scores[1][KEYPOINT_DICT.get(posture[1])] > threshold and 
+                keypoints_scores[1][KEYPOINT_DICT.get(posture[2])] > threshold):
+                p1 = keypoints_scores[0][KEYPOINT_DICT.get(posture[0])]
+                p2 = keypoints_scores[0][KEYPOINT_DICT.get(posture[1])]
+                p3 = keypoints_scores[0][KEYPOINT_DICT.get(posture[2])]
+                angle = _angle_between_points(p1, p2, p3)
+                error = abs(angle - expectedAngle)
+                diffs[posture[0]] = error
+    return diffs
 
 def track(exercise, capture_device=0, height=540, width=960, model_name="movenet_thunder"):
     model, input_size = _get_model(model_name)
@@ -87,8 +112,12 @@ def track(exercise, capture_device=0, height=540, width=960, model_name="movenet
     cap.set(cv.CAP_PROP_FRAME_WIDTH, width)
 
     exerciseStates = EXERCISES.get(exercise)['states']
+    allowed_err = EXERCISES.get(exercise)['allowed_err']
+    alert_err = EXERCISES.get(exercise)['alert_err']
     state = 0
     numStates = len(exerciseStates)
+    message = ""
+    curr_err = {}
 
     repCounts = 0
 
@@ -104,16 +133,33 @@ def track(exercise, capture_device=0, height=540, width=960, model_name="movenet
             frame,
         )
 
-        if _verify_output(keypoints_scores, exerciseStates[state]):
-            state += 1
-            if state == numStates:
-                repCounts += 1
-                state = 0
+        diffs_curr = _verify_output(keypoints_scores, exerciseStates[state])
+        diffs_next = _verify_output(keypoints_scores, exerciseStates[(state+1)%numStates])
 
+        for k, v in diffs_curr.items():
+            if k not in curr_err or curr_err[k] > v:
+                curr_err[k] = v
+
+        # print(diffs_next)
+
+        if all(err < allowed_err for err in diffs_next.values()):
+            message = ""
+            for k, v in curr_err.items():
+                print(v)
+                if v > alert_err:
+                    message += f"Make sure your {k.replace('both_', '')} are bent correctly"
+
+            state = (state + 1)%numStates
+            if state == 0:
+                repCounts += 1
+
+        # print(state)
+        # print(message)
         debug_image = draw_frame(
             frame,
             keypoints_scores,
-            repCounts
+            repCounts,
+            message
         )
 
         key = cv.waitKey(1)

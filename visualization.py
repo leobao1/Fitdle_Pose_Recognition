@@ -8,6 +8,7 @@ def draw_frame(
         image,
         keypoints_scores,
         repCount,
+        message,
         keypoint_score_th=0.11
     ):
     width, height = image.shape[1], image.shape[0]
@@ -26,6 +27,10 @@ def draw_frame(
     cv.putText(debug_image,
                f"Rep Count: {repCount}",
                (10, 30), cv.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 0), 2,
+               cv.LINE_AA)
+    cv.putText(debug_image,
+               f"{message}",
+               (10, 60), cv.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 0), 2,
                cv.LINE_AA)
     return debug_image
 

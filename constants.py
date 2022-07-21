@@ -2,6 +2,8 @@
 EXERCISES = {
     'squat' : {
         'name': 'Squat',
+        'allowed_err': 15,
+        'alert_err': 10,
         'states': [
             {
                 ('right_knee', 'right_hip', 'right_ankle'): 100,
@@ -15,14 +17,14 @@ EXERCISES = {
     },
     'pushup' : {
         'name': 'Pushup',
+        'allowed_err': 15,
+        'alert_err': 10,
         'states': [
             {
-                ('right_elbow', 'right_wrist', 'right_shoulder'): 90,
-                ('left_elbow', 'left_wrist', 'left_shoulder'): 90,
+                ('both_elbow', 'both_wrist', 'both_shoulder'): 180,
             },
             {
-                ('right_elbow', 'right_wrist', 'right_shoulder'): 180,
-                ('left_elbow', 'left_wrist', 'left_shoulder'): 180,
+                ('both_elbow', 'both_wrist', 'both_shoulder'): 90,
             }
         ]
     },
