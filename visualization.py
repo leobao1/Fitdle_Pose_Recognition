@@ -28,10 +28,11 @@ def draw_frame(
                f"Rep Count: {repCount}",
                (10, 30), cv.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 0), 2,
                cv.LINE_AA)
-    cv.putText(debug_image,
-               f"{message}",
-               (10, 60), cv.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 0), 2,
-               cv.LINE_AA)
+    for i, m in enumerate(message):
+        cv.putText(debug_image,
+                f"{m}",
+                (10, 60 + i*30), cv.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 0), 2,
+                cv.LINE_AA)
     return debug_image
 
 

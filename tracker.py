@@ -5,6 +5,7 @@ import cv2 as cv
 import copy
 import time
 
+from math import atan2, degrees
 from constants import KEYPOINT_DICT, EXERCISES
 from visualization import draw_frame
 
@@ -52,16 +53,13 @@ def _movenet_estimation(model, input_size, image):
 def _dist_between_points(p1, p2):
     return np.sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)
 
-
-# p1 is vertex
-# uses cosine law
-def _angle_between_points(p1, p2, p3):
-    d12 = _dist_between_points(p1, p2)
-    d23 = _dist_between_points(p2, p3)
-    d13 = _dist_between_points(p1, p3)
-    angle = np.arccos((d12**2 + d13**2 - d23**2)/(2*d12*d13))
-    angle = np.degrees(angle)
-    return angle
+def _angle_between(p1, p2, p3):
+    x1, y1 = p1
+    x2, y2 = p2
+    x3, y3 = p3
+    deg1 = (360 + degrees(atan2(x1 - x2, y1 - y2))) % 360
+    deg2 = (360 + degrees(atan2(x3 - x2, y3 - y2))) % 360
+    return abs(deg2 - deg1) if abs(deg2 - deg1) <= 180 else abs(deg1 - deg2)
 
 
 def _verify_output(keypoints_scores, expectedPose, threshold=0.11):
@@ -78,8 +76,7 @@ def _verify_output(keypoints_scores, expectedPose, threshold=0.11):
                 p1_r = keypoints_scores[0][KEYPOINT_DICT.get(posture[0].replace('both', 'right'))]
                 p2_r = keypoints_scores[0][KEYPOINT_DICT.get(posture[1].replace('both', 'right'))]
                 p3_r = keypoints_scores[0][KEYPOINT_DICT.get(posture[2].replace('both', 'right'))]
-                angle_r = _angle_between_points(p1_r, p2_r, p3_r)
-                # print(angle_r)
+                angle_r = _angle_between(p2_r, p1_r, p3_r)
 
             if (keypoints_scores[1][KEYPOINT_DICT.get(posture[0].replace('both', 'left'))] > threshold and 
                 keypoints_scores[1][KEYPOINT_DICT.get(posture[1].replace('both', 'left'))] > threshold and 
@@ -87,9 +84,7 @@ def _verify_output(keypoints_scores, expectedPose, threshold=0.11):
                 p1_l = keypoints_scores[0][KEYPOINT_DICT.get(posture[0].replace('both', 'left'))]
                 p2_l = keypoints_scores[0][KEYPOINT_DICT.get(posture[1].replace('both', 'left'))]
                 p3_l = keypoints_scores[0][KEYPOINT_DICT.get(posture[2].replace('both', 'left'))]
-                angle_l = _angle_between_points(p1_l, p2_l, p3_l)
-                # print(angle_l)
-
+                angle_l = _angle_between(p2_l, p1_l, p3_l)
 
             diffs[posture[0]] = min(abs(angle_r - expectedAngle), abs(angle_l - expectedAngle))
         else:
@@ -99,7 +94,7 @@ def _verify_output(keypoints_scores, expectedPose, threshold=0.11):
                 p1 = keypoints_scores[0][KEYPOINT_DICT.get(posture[0])]
                 p2 = keypoints_scores[0][KEYPOINT_DICT.get(posture[1])]
                 p3 = keypoints_scores[0][KEYPOINT_DICT.get(posture[2])]
-                angle = _angle_between_points(p1, p2, p3)
+                angle = _angle_between(p2, p1, p3)
                 error = abs(angle - expectedAngle)
                 diffs[posture[0]] = error
     return diffs
@@ -116,7 +111,7 @@ def track(exercise, capture_device=0, height=540, width=960, model_name="movenet
     alert_err = EXERCISES.get(exercise)['alert_err']
     state = 0
     numStates = len(exerciseStates)
-    message = ""
+    message = []
     curr_err = {}
 
     repCounts = 0
@@ -136,25 +131,28 @@ def track(exercise, capture_device=0, height=540, width=960, model_name="movenet
         diffs_curr = _verify_output(keypoints_scores, exerciseStates[state])
         diffs_next = _verify_output(keypoints_scores, exerciseStates[(state+1)%numStates])
 
+        best_pose = True
         for k, v in diffs_curr.items():
-            if k not in curr_err or curr_err[k] > v:
-                curr_err[k] = v
+            if k not in curr_err:
+                break
+            elif curr_err[k] < v:
+                best_pose = False
+                break
 
-        # print(diffs_next)
+        if best_pose: curr_err = diffs_curr
 
         if all(err < allowed_err for err in diffs_next.values()):
-            message = ""
+            message = []
             for k, v in curr_err.items():
-                print(v)
+                print(f"{k}: {v}")
                 if v > alert_err:
-                    message += f"Make sure your {k.replace('both_', '')} are bent correctly"
+                    message.append(f"Your form at your {k.replace('both_', '')} is a bit off")
 
+            curr_err = {}
             state = (state + 1)%numStates
             if state == 0:
                 repCounts += 1
 
-        # print(state)
-        # print(message)
         debug_image = draw_frame(
             frame,
             keypoints_scores,

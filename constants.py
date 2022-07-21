@@ -6,25 +6,25 @@ EXERCISES = {
         'alert_err': 10,
         'states': [
             {
-                ('right_knee', 'right_hip', 'right_ankle'): 100,
-                ('left_knee', 'left_hip', 'left_ankle'): 100,
+                ('both_knee', 'both_hip', 'both_ankle'): 100,
             },
             {
-                ('right_knee', 'right_hip', 'right_ankle'): 180,
-                ('left_knee', 'left_hip', 'left_ankle'): 180,
+                ('both_knee', 'both_hip', 'both_ankle'): 180,
             }
         ]
     },
     'pushup' : {
         'name': 'Pushup',
-        'allowed_err': 15,
-        'alert_err': 10,
+        'allowed_err': 25,
+        'alert_err': 5,
         'states': [
             {
                 ('both_elbow', 'both_wrist', 'both_shoulder'): 180,
+                ('both_hip', 'both_shoulder', 'both_ankle'): 180,
             },
             {
                 ('both_elbow', 'both_wrist', 'both_shoulder'): 90,
+                ('both_hip', 'both_shoulder', 'both_ankle'): 180,
             }
         ]
     },
